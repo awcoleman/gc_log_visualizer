@@ -429,7 +429,19 @@ class LogParser:
   
   def parse_log(self):
     with open(self.input_file) as f:
+      inCMSTenuringDistribution = False
+      prevLine = ""
+
       for line in f:
+        if line.startswith("Desired survivor size") or line.startswith("- age"):
+          inCMSTenuringDistribution = True
+          continue
+
+        if inCMSTenuringDistribution:
+          inCMSTenuringDistribution = False
+          line = prevLine + line
+        prevLine = line.rstrip()
+
         # This needs to be first
         self.line_has_timestamp(line)
 
