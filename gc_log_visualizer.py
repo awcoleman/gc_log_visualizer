@@ -45,20 +45,20 @@ class LogParser:
   def __init__(self, input_file):
     self.timestamp = None
     self.input_file = input_file
-    self.pause_file = open('pause.dat', "w+b")
-    self.young_pause_file = open('young-pause.dat', "w+b")
-    self.mixed_pause_file = open('mixed-pause.dat', "w+b")
-    self.pause_count_file = open('pause_count.dat', "w+b")
-    self.full_gc_file = open('full_gc.dat', "w+b")
-    self.gc_file = open('gc.dat', "w+b")
-    self.young_file = open('young.dat', "w+b")
-    self.root_scan_file = open('rootscan.dat', "w+b")
-    self.cms_mark_file = open('cms_mark.dat', "w+b")
-    self.cms_rescan_file = open('cms_rescan.dat', "w+b")
-    self.mixed_duration_file = open('mixed_duration.dat', "w+b")
-    self.exhaustion_file = open('exhaustion.dat', "w+b")
-    self.humongous_objects_file = open('humongous_objects.dat', "w+b")
-    self.reclaimable_file = open('reclaimable.dat', "w+b")
+    self.pause_file = open('pause.dat', "w+")
+    self.young_pause_file = open('young-pause.dat', "w+")
+    self.mixed_pause_file = open('mixed-pause.dat', "w+")
+    self.pause_count_file = open('pause_count.dat', "w+")
+    self.full_gc_file = open('full_gc.dat', "w+")
+    self.gc_file = open('gc.dat', "w+")
+    self.young_file = open('young.dat', "w+")
+    self.root_scan_file = open('rootscan.dat', "w+")
+    self.cms_mark_file = open('cms_mark.dat', "w+")
+    self.cms_rescan_file = open('cms_rescan.dat', "w+")
+    self.mixed_duration_file = open('mixed_duration.dat', "w+")
+    self.exhaustion_file = open('exhaustion.dat', "w+")
+    self.humongous_objects_file = open('humongous_objects.dat', "w+")
+    self.reclaimable_file = open('reclaimable.dat', "w+")
     self.gc_alg_g1gc = False
     self.gc_alg_cms = False
     self.gc_alg_parallel = False
@@ -138,7 +138,7 @@ class LogParser:
 
     if self.gc_alg_parallel:
       if self.is_empty(self.pause_file):
-        logging.warn("Skipping %s-stw.png, no data", name)
+        logging.warning("Skipping %s-stw.png, no data", name)
       else:
         logging.info("Generating %s-stw.png", name)
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"all stw\"'" % (self.size, name, xrange, self.pause_file.name)
@@ -148,21 +148,21 @@ class LogParser:
     # Separate young and mixed stw events
     if self.gc_alg_g1gc:
       if self.is_empty(self.young_pause_file):
-        logging.warn("Skipping %s-stw-young.png, no data", name)
+        logging.warning("Skipping %s-stw-young.png, no data", name)
       else:
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, self.young_pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.mixed_pause_file):
-        logging.warn("Skipping %s-stw-mixed.png, no data", name)
+        logging.warning("Skipping %s-stw-mixed.png, no data", name)
       else:
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-mixed.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"mixed\"'" % (self.size, name, xrange, self.mixed_pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.young_pause_file) or self.is_empty(self.mixed_pause_file):
-        logging.warn("Skipping %s-stw-all.png, no data", name)
+        logging.warning("Skipping %s-stw-all.png, no data", name)
       else:
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-all.png\"; set xdata time; " \
             "set ylabel \"Secs\"; " \
@@ -176,7 +176,7 @@ class LogParser:
     # Separate young and mixed stw events
     if self.gc_alg_cms:
       if self.is_empty(self.pause_file):
-        logging.warn("Skipping %s-stw-young.png, no data", name)
+        logging.warning("Skipping %s-stw-young.png, no data", name)
       else:
         logging.info("Generating %s-stw-young.png", name)
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, self.pause_file.name)
@@ -184,7 +184,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.pause_file) or self.is_empty(self.cms_mark_file) or self.is_empty(self.cms_rescan_file):
-        logging.warn("Skipping %s-stw-all.png, no data", name)
+        logging.warning("Skipping %s-stw-all.png, no data", name)
       else:
         logging.info("Generating %s-stw-all.png", name)
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-all.png\"; set xdata time; " \
@@ -198,7 +198,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.cms_mark_file) or self.is_empty(self.cms_rescan_file):
-        logging.warn("Skipping %s-stw-old.png, no data", name)
+        logging.warning("Skipping %s-stw-old.png, no data", name)
       else:
         logging.info("Generating %s-stw-old.png", name)
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-old.png\"; set xdata time; " \
@@ -213,7 +213,7 @@ class LogParser:
     # Stw sub-timings
     if self.gc_alg_g1gc:
       if self.is_empty(self.pause_file):
-        logging.warn("Skipping %s-substw-*.png, no data", name)
+        logging.warning("Skipping %s-substw-*.png, no data", name)
       else:
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-ext-root-scan.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:3 title \"ext-root-scan\"'" % (self.size, name, xrange, self.pause_file.name)
         logging.debug(gnuplot_cmd)
@@ -245,7 +245,7 @@ class LogParser:
 
     # total pause time
     if self.is_empty(self.pause_count_file):
-      logging.warn("Skipping %s-total-pause.png, no data", name)
+      logging.warning("Skipping %s-total-pause.png, no data", name)
     else:
       logging.info("Generating %s-total-pause.png", name)
       gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-total-pause.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:8 title \"%% of time in gc\"'" % (self.size, name, xrange, self.pause_count_file.name)
@@ -253,7 +253,7 @@ class LogParser:
       os.system(gnuplot_cmd)
 
     if self.is_empty(self.pause_count_file):
-      logging.warn("Skipping %s-pause-count.png, no data", name)
+      logging.warning("Skipping %s-pause-count.png, no data", name)
     else:
       logging.info("Generating %s-pause-count.png", name)
       # Note: This seems to have marginal utility as compared to the plot of wall time vs. pause time
@@ -270,7 +270,7 @@ class LogParser:
       os.system(gnuplot_cmd)
 
     if self.is_empty(self.gc_file):
-      logging.warn("Skipping %s-heap.png, no data", name)
+      logging.warning("Skipping %s-heap.png, no data", name)
     else:
       logging.info("Generating %s-heap.png", name)
       gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-heap.png\"; set xdata time; " \
@@ -290,7 +290,7 @@ class LogParser:
       to_space_exhaustion = ""
 
     if self.is_empty(self.young_file) or self.is_empty(self.reclaimable_file):
-      logging.warn("Skipping %s-totals.png, no data", name)
+      logging.warning("Skipping %s-totals.png, no data", name)
     else:
       logging.info("Generating %s-totals.png", name)
       # line graph of Eden, Tenured and the Total
@@ -308,7 +308,7 @@ class LogParser:
       os.system(gnuplot_cmd)
 
     if self.is_empty(self.young_file):
-      logging.warn("Skipping %s-young.png, no data", name)
+      logging.warning("Skipping %s-young.png, no data", name)
     else:
       logging.info("Generating %s-young.png", name)
       gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-young.png\"; set xdata time; " \
@@ -322,7 +322,7 @@ class LogParser:
 
     if self.gc_alg_g1gc:
       if self.is_empty(self.young_file):
-        logging.warn("Skipping %s-tenured-delta.png, no data", name)
+        logging.warning("Skipping %s-tenured-delta.png, no data", name)
       else:
         logging.info("Generating %s-tenured-delta.png", name)
         gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-tenured-delta.png\"; set xdata time; " \
@@ -335,7 +335,7 @@ class LogParser:
 
     if self.gc_alg_g1gc:
       if self.is_empty(self.root_scan_file):
-        logging.warn("Skipping %s-root-scan.png, no data", name)
+        logging.warning("Skipping %s-root-scan.png, no data", name)
       else:
         # root-scan times
         logging.info("Generating %s-root-scan.png", name)
@@ -344,7 +344,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.mixed_duration_file):
-        logging.warn("Skipping %s-mixed-duration.png, no data", name)
+        logging.warning("Skipping %s-mixed-duration.png, no data", name)
       else:
         # time from first mixed-gc to last
         logging.info("Generating %s-mixed-duration.png", name)
@@ -353,7 +353,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.mixed_duration_file):
-        logging.warn("Skipping %s-duration-count.png, no data", name)
+        logging.warning("Skipping %s-duration-count.png, no data", name)
       else:
         # count of mixed-gc runs before stopping mixed gcs, max is 8 by default
         logging.info("Generating %s-duration-count.png", name)
@@ -362,7 +362,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.exhaustion_file):
-        logging.warn("Skipping %s-exhaustion.png, no data", name)
+        logging.warning("Skipping %s-exhaustion.png, no data", name)
       else:
         # to-space exhaustion events
         logging.info("Generating %s-exhaustion.png", name)
@@ -371,7 +371,7 @@ class LogParser:
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.humongous_objects_file):
-        logging.warn("Skipping %s-humongous.png, no data", name)
+        logging.warning("Skipping %s-humongous.png, no data", name)
       else:
         logging.info("Generating %s-humongous.png", name)
         # humongous object sizes
@@ -423,9 +423,9 @@ class LogParser:
   def get_long_field(self, line, field, def_value=0):
     m = re.match(".*%s=([0-9]+).*" % field, line, flags=0)
     if m:
-      return long(m.group(1))
+      return int(m.group(1))
     else:
-      return long(def_value)
+      return int(def_value)
   
   def parse_log(self):
     with open(self.input_file) as f:
@@ -487,7 +487,7 @@ class LogParser:
 
   def output_pause_counts(self):
     self.pause_count_file.write("%s %s %s %s %s %s %s %s\n" % (self.timestamp_string(), self.under_50, self.under_90, self.under_120, self.under_150, self.under_200, self.over_200, self.total_pause_time * 100 / 60))
-
+    
   def line_has_pause_time(self, line):
     m = re.match("[0-9-]*T[0-9]+:([0-9]+):.* threads were stopped: ([0-9.]+) seconds", line, flags=0)
     if not m or not (self.gc or self.full_gc):
@@ -514,7 +514,7 @@ class LogParser:
     if t and len(t) > 15:  # 15 is mildly arbitrary
       try:
         self.timestamp = dateutil.parser.parse(t)
-      except (ValueError, AttributeError), e:
+      except (ValueError, AttributeError) as e:
         return
     return
 
@@ -588,7 +588,7 @@ class LogParser:
   def collect_reclaimable(self, line):
     m = re.match(LogParser.reclaimablePattern, line, flags=0)
     if m and int(float(m.group(2))) >= int(m.group(3)) and self.timestamp:
-      self.reclaimable_file.write("%s %d\n" % (self.timestamp_string(), long(m.group(1)) / 1048576))
+      self.reclaimable_file.write("%s %d\n" % (self.timestamp_string(), int(m.group(1)) / 1048576))
 
   def collect_stw_sub_timings(self, line):
     if re.match('^[ ]+\[.*', line):
