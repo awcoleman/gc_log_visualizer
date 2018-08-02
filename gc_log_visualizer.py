@@ -7,6 +7,8 @@ import os
 import dateutil.parser
 import logging
 import argparse
+import json
+from pprint import pprint
 
 class StwSubTimings:
   def __init__(self):
@@ -83,6 +85,11 @@ class LogParser:
     self.reset_pause_counts()
     self.occupancy_threshold = None
     self.stw = StwSubTimings()
+    self.spark_stages = {}
+    self.spark_executors = {}
+    self.data_start = dateutil.parser.parse("2500-01-01T00:00:00+0000")
+    self.data_end = dateutil.parser.parse("1970-01-01T00:00:00+0000")
+
 
   def cleanup(self):
     os.unlink(self.pause_file.name)
@@ -122,9 +129,19 @@ class LogParser:
 
   def gnuplot(self, name, start, end):
     if start is None:
-      xrange = ""
+      #xrange = ""
+      xrange = "set xrange [ \"%s\":\"%s\" ]; " % ( self.any_timestamp_string(self.data_start), self.any_timestamp_string(self.data_end) )
     else:
       xrange = "set xrange [ \"%s\":\"%s\" ]; " % (start, end)
+
+    # Spark lines
+    spark_arrows = ""
+    # Stage data is time, label
+    for stage_time,stage_label in self.spark_stages.items():
+      spark_arrows += "set arrow from \"%s\", graph 0 to \"%s\", graph 1 nohead; set label \"%s\" at \"%s\",10 rotate left offset 1,0; " % (stage_time, stage_time, stage_label, stage_time)
+    # Executor data is label, time
+    for stage_label,stage_time in self.spark_executors.items():
+      spark_arrows += "set arrow from \"%s\", graph 0 to \"%s\", graph 1 nohead; set label \"%s\" at \"%s\",10 rotate left offset 1,0; " % (stage_time, stage_time, stage_label, stage_time)
 
     # Add a line for the occupancy threshold if found
     occupancy_threshold_arrow = ""
@@ -141,7 +158,7 @@ class LogParser:
         logging.warning("Skipping %s-stw.png, no data", name)
       else:
         logging.info("Generating %s-stw.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"all stw\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"all stw\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -150,14 +167,14 @@ class LogParser:
       if self.is_empty(self.young_pause_file):
         logging.warning("Skipping %s-stw-young.png, no data", name)
       else:
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, self.young_pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, spark_arrows, self.young_pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
       if self.is_empty(self.mixed_pause_file):
         logging.warning("Skipping %s-stw-mixed.png, no data", name)
       else:
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-mixed.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"mixed\"'" % (self.size, name, xrange, self.mixed_pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-mixed.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"mixed\"'" % (self.size, name, xrange, spark_arrows, self.mixed_pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -179,7 +196,7 @@ class LogParser:
         logging.warning("Skipping %s-stw-young.png, no data", name)
       else:
         logging.info("Generating %s-stw-young.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-stw-young.png\"; set xdata time; set ylabel \"Secs\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"young\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -215,31 +232,31 @@ class LogParser:
       if self.is_empty(self.pause_file):
         logging.warning("Skipping %s-substw-*.png, no data", name)
       else:
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-ext-root-scan.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:3 title \"ext-root-scan\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-ext-root-scan.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:3 title \"ext-root-scan\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-update-rs.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:4 title \"update-rs\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-update-rs.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:4 title \"update-rs\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-scan-rs.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:5 title \"scan-rs\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-scan-rs.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:5 title \"scan-rs\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-object-copy.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:6 title \"object-copy\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-object-copy.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:6 title \"object-copy\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-termination.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:7 title \"termination\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-termination.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:7 title \"termination\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-other.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:8 title \"other\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-other.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:8 title \"other\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-unknown.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:9 title \"unknown\"'" % (self.size, name, xrange, self.pause_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-substw-unknown.png\"; set xdata time; set ylabel \"millis\"; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:9 title \"unknown\"'" % (self.size, name, xrange, spark_arrows, self.pause_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -248,7 +265,7 @@ class LogParser:
       logging.warning("Skipping %s-total-pause.png, no data", name)
     else:
       logging.info("Generating %s-total-pause.png", name)
-      gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-total-pause.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:8 title \"%% of time in gc\"'" % (self.size, name, xrange, self.pause_count_file.name)
+      gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-total-pause.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:8 title \"%% of time in gc\"'" % (self.size, name, xrange, spark_arrows, self.pause_count_file.name)
       logging.debug(gnuplot_cmd)
       os.system(gnuplot_cmd)
 
@@ -260,12 +277,13 @@ class LogParser:
       gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-pause-count.png\"; set xdata time; " \
         "set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; " \
         "%s " \
+        "%s " \
         "plot \"%s\" using 1:2 title \"under-50\" with lines" \
         ", \"%s\" using 1:3 title \"50-90\" with lines" \
         ", \"%s\" using 1:4 title \"90-120\" with lines" \
         ", \"%s\" using 1:5 title \"120-150\" with lines" \
         ", \"%s\" using 1:6 title \"150-200\" with lines" \
-        ", \"%s\" using 1:7 title \"200+\" with lines'" % (self.size, name, xrange, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name)
+        ", \"%s\" using 1:7 title \"200+\" with lines'" % (self.size, name, xrange, spark_arrows, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name, self.pause_count_file.name)
       logging.debug(gnuplot_cmd)
       os.system(gnuplot_cmd)
 
@@ -278,8 +296,9 @@ class LogParser:
         "set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; " \
         "%s " \
         "%s " \
+        "%s " \
         "plot \"%s\" using 1:2 title \"pre-gc-amount\"" \
-        ", \"%s\" using 1:3 title \"post-gc-amount\"'" % (self.size, name, occupancy_threshold_arrow, xrange, self.gc_file.name, self.gc_file.name)
+        ", \"%s\" using 1:3 title \"post-gc-amount\"'" % (self.size, name, occupancy_threshold_arrow, xrange, spark_arrows, self.gc_file.name, self.gc_file.name)
       logging.debug(gnuplot_cmd)
       os.system(gnuplot_cmd)
 
@@ -299,11 +318,12 @@ class LogParser:
           "set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; " \
           "%s " \
           "%s " \
+          "%s " \
           "plot \"%s\" using 1:2 title \"Eden\" with lines" \
           ", \"%s\" using 1:4 title \"Tenured\" with lines" \
           "%s" \
           ", \"%s\" using 1:5 title \"Total\" with lines" \
-          ", \"%s\" using 1:2 title \"Reclaimable\"'" % (self.size, name, xrange, occupancy_threshold_arrow, self.young_file.name, self.young_file.name, to_space_exhaustion, self.young_file.name, self.reclaimable_file.name)
+          ", \"%s\" using 1:2 title \"Reclaimable\"'" % (self.size, name, xrange, spark_arrows, occupancy_threshold_arrow, self.young_file.name, self.young_file.name, to_space_exhaustion, self.young_file.name, self.reclaimable_file.name)
       logging.debug(gnuplot_cmd)
       os.system(gnuplot_cmd)
 
@@ -315,8 +335,9 @@ class LogParser:
           "set ylabel \"MB\"; " \
           "set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; " \
           "%s " \
+          "%s " \
           "plot \"%s\" using 1:2 title \"current\"" \
-          ", \"%s\" using 1:3 title \"max\"'" % (self.size, name, xrange, self.young_file.name, self.young_file.name)
+          ", \"%s\" using 1:3 title \"max\"'" % (self.size, name, xrange, spark_arrows, self.young_file.name, self.young_file.name)
       logging.debug(gnuplot_cmd)
       os.system(gnuplot_cmd)
 
@@ -329,7 +350,8 @@ class LogParser:
             "set ylabel \"MB\"; " \
             "set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; " \
             "%s " \
-            "plot \"%s\" using 1:6 with lines title \"tenured-delta\"'" % (self.size, name, xrange, self.young_file.name)
+            "%s " \
+            "plot \"%s\" using 1:6 with lines title \"tenured-delta\"'" % (self.size, name, xrange, spark_arrows, self.young_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -339,7 +361,7 @@ class LogParser:
       else:
         # root-scan times
         logging.info("Generating %s-root-scan.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-root-scan.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"root-scan-duration(ms)\"'" % (self.size, name, xrange, self.root_scan_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-root-scan.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"root-scan-duration(ms)\"'" % (self.size, name, xrange, spark_arrows, self.root_scan_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -348,7 +370,7 @@ class LogParser:
       else:
         # time from first mixed-gc to last
         logging.info("Generating %s-mixed-duration.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-mixed-duration.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"mixed-gc-duration(ms)\"'" % (self.size, name, xrange, self.mixed_duration_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-mixed-duration.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"mixed-gc-duration(ms)\"'" % (self.size, name, xrange, spark_arrows, self.mixed_duration_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -357,7 +379,7 @@ class LogParser:
       else:
         # count of mixed-gc runs before stopping mixed gcs, max is 8 by default
         logging.info("Generating %s-duration-count.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-mixed-duration-count.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:3 title \"mixed-gc-count\"'" % (self.size, name, xrange, self.mixed_duration_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-mixed-duration-count.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:3 title \"mixed-gc-count\"'" % (self.size, name, xrange, spark_arrows, self.mixed_duration_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -366,7 +388,7 @@ class LogParser:
       else:
         # to-space exhaustion events
         logging.info("Generating %s-exhaustion.png", name)
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-exhaustion.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2'" % (self.size, name, xrange, self.exhaustion_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-exhaustion.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2'" % (self.size, name, xrange, spark_arrows, self.exhaustion_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -375,7 +397,7 @@ class LogParser:
       else:
         logging.info("Generating %s-humongous.png", name)
         # humongous object sizes
-        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-humongous.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s plot \"%s\" using 1:2 title \"humongous-object-size(KB)\"'" % (self.size, name, xrange, self.humongous_objects_file.name)
+        gnuplot_cmd = "gnuplot -e 'set term png size %s; set output \"%s-humongous.png\"; set xdata time; set timefmt \"%%Y-%%m-%%d:%%H:%%M:%%S\"; %s %s plot \"%s\" using 1:2 title \"humongous-object-size(KB)\"'" % (self.size, name, xrange, spark_arrows, self.humongous_objects_file.name)
         logging.debug(gnuplot_cmd)
         os.system(gnuplot_cmd)
 
@@ -466,7 +488,50 @@ class LogParser:
         if self.line_has_pause_time(line):
           self.output_data()
           self.stw.reset()
-    
+
+  def spark_time_format_convert(self, spark_time):
+    """ Converts 2018-07-31T23:21:03.630GMT from Spark stage log to 2018-07-31:23:21:04 needed by gnuplot """
+    return spark_time[0:10] + ":" + spark_time[11:19]
+
+
+  def parse_spark_stages_file(self, stages_file):
+    """
+    Get Spark Stages JSON file with
+      sparkhistsvr=127.0.0.1
+      appid="app-20180731232100-0006"
+      curl http://${sparkhistsvr}:18088/api/v1/applications/${appid}/stages > spark_${appid}_stages.json
+    """
+    with open(stages_file) as f:
+      stage_data = json.load(f)
+      for stage in stage_data:
+        #firstTaskLaunchedTime is first so if the same second as submissionTime, submissionTime takes precedence, with completionTime as the highest precedence
+        if stage["firstTaskLaunchedTime"]:
+          self.spark_stages[ self.spark_time_format_convert( stage["firstTaskLaunchedTime"] ) ] = ""
+          logging.debug("Added firstTaskLaunchedTime %s for Stage %d" % (self.spark_time_format_convert( stage["firstTaskLaunchedTime"] ), stage["stageId"]) )
+        if stage["submissionTime"]:
+          self.spark_stages[ self.spark_time_format_convert( stage["submissionTime"] ) ] = "Stage %d submissionTime : %s" % (stage["stageId"], stage["name"])
+          logging.debug("Added submissionTime %s for Stage %d" % (self.spark_time_format_convert( stage["submissionTime"] ), stage["stageId"]) )
+        if stage["completionTime"]:
+          self.spark_stages[ self.spark_time_format_convert( stage["completionTime"] ) ] = "Stage %d completionTime" % (stage["stageId"])
+          logging.debug("Added completionTime %s for Stage %d" % (self.spark_time_format_convert( stage["completionTime"] ), stage["stageId"]) )
+
+
+  def parse_spark_executors_file(self, executors_file):
+    """
+    Get Spark Executors JSON file with
+      sparkhistsvr=127.0.0.1
+      appid="app-20180731232100-0006"
+      curl http://${sparkhistsvr}:18088/api/v1/applications/${appid}/executors > spark_${appid}_executors.json
+    """
+    with open(executors_file) as f:
+      executors_data = json.load(f)
+      for executor in executors_data:
+        #firstTaskLaunchedTime is first so if the same second as submissionTime, submissionTime takes precedence, with completionTime as the highest precedence
+        if executor["id"]:
+          self.spark_executors[ "Executor " + executor["id"] + " added" ] = self.spark_time_format_convert( executor["addTime"] )
+          logging.debug("Added executor addTime %s for Executor %s" % (self.spark_time_format_convert( executor["addTime"] ), executor["id"]) )
+
+
   def output_data(self):
     if self.mixed_duration_count == 0:
       self.young_pause_file.write("%s %.6f\n" % (self.timestamp_string(), self.pause_time))
@@ -514,6 +579,10 @@ class LogParser:
     if t and len(t) > 15:  # 15 is mildly arbitrary
       try:
         self.timestamp = dateutil.parser.parse(t)
+        if self.timestamp > self.data_end:
+          self.data_end = self.timestamp
+        if self.timestamp < self.data_start:
+          self.data_start = self.timestamp
       except (ValueError, AttributeError) as e:
         return
     return
@@ -719,11 +788,20 @@ def main():
     parser.add_argument("-p", "--prefix", dest="basefilename", default='default', help="Output prefix")
     parser.add_argument("-s", "--start", dest="start", help="Range start")
     parser.add_argument("-e", "--end", dest="end", help="Range end")
+    parser.add_argument("-t", "--stages", dest="stagesFile", help="Spark Stages JSON file to parse")
+    parser.add_argument("-x", "--executors", dest="executorsFile", help="Spark Executors JSON file to parse")
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.logLevel))
 
     logParser = LogParser(args.gcFile)
+
+    if (args.stagesFile):
+      logParser.parse_spark_stages_file(args.stagesFile)
+
+    if (args.executorsFile):
+      logParser.parse_spark_executors_file(args.executorsFile)
+
     try:
       logParser.determine_gc_alg()
       logging.info("gc alg: parallel=%s, g1gc=%s, cms=%s" % (logParser.gc_alg_parallel, logParser.gc_alg_g1gc, logParser.gc_alg_cms))
@@ -732,6 +810,7 @@ def main():
       logParser.gnuplot(args.basefilename, args.start, args.end)
     finally:
       logParser.cleanup()
+      logging.info("Finished cleanup")
 
 if __name__ == '__main__':
     main()
