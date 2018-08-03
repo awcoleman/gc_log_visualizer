@@ -1,7 +1,7 @@
-# Run a gc.log through gnuplot for multiple views of GC performance
+# Run a gc.log through gnuplot for multiple views of GC performance (with optional Spark Executor and Stage marks)
 
 The python script `gc_log_visualizer.py` will use gnuplot to graph interesting characteristics
-and data from the given gc log.
+and data from the given gc log (and optionally Spark Executor and Stage marks).
 
  * pre/post gc amounts for total heap. Bar for `InitiatingHeapOccupancyPercent` if found.
  * mixed gc duration, from the start of the first event until not continued in a new minor event (g1gc)
@@ -41,7 +41,26 @@ The second argument will be used as the base name for the created png files.
   python gc_log_visualizer.py gc.log 3minwindow 2015-08-12:19:36:00 2015-08-12:19:39:00
 ```
 
-## gc log preparation
+## Adding Spark Executor and Stage Information (Optional)
+The executor and stage timeing information can be gathered from the Spark History Server
+```
+appid="app-20180801043650-0008"
+sparkhistsvr=127.0.0.1:18088
+curl http://${sparkhistsvr}/api/v1/applications/${appid}/stages > spark_${appid}_stages.json
+curl http://${sparkhistsvr}/api/v1/applications/${appid}/executors > spark_${appid}_executors.json
+```
+The Spark stage JSON file is passed with -t  
+The Spark executor JSON file is passed with -x  
+```
+gc_log_visualizer.py -f gc_executor_1.log -t spark_${appid}_stages.json -x spark_${appid}_executors.json
+```
+Add garbage collection logs to the Spark executors (and driver) with
+```
+spark-submit .... --conf "spark.driver.extraJavaOptions=-XX:+UseG1GC -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationStoppedTime -XX:+PrintAdaptiveSizePolicy -Xloggc:gc.log" --conf "spark.executor.extraJavaOptions=-XX:+UseG1GC -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationStoppedTime -XX:+PrintAdaptiveSizePolicy -Xloggc:gc.log"
+```
+The gc log files (gc.log, one for each executor) are located in the log directory with stdout and stderr
+
+## GC Log Preparation
 The script has been run on ParallelGC and G1GC logs. There may
 be some oddities/issues with ParallelGC as profiling it hasn't
 proven overly useful.
@@ -52,7 +71,7 @@ The following gc params are required for full functionality.
   -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintGCApplicationStoppedTime -XX:+PrintAdaptiveSizePolicy
 ```
 
-## required python libs
+## Required Python Libs
 The python libs that are required can be found in the setup.py
 and handled in the usual manner.
 
@@ -61,16 +80,16 @@ and handled in the usual manner.
 pip install -r requirements.txt
 ```
 
-## gnuplot
+## Gnuplot
 The gc.log is parsed into flat files which are then run through
 gnuplot.
 
 ```
   # osx
   brew install gnuplot
-  brew unlink libjpeg
-  brew install libjpeg
-  brew link libjpeg
+  #brew unlink libjpeg
+  #brew install libjpeg
+  #brew link libjpeg
 ```
 
 ## Examples
